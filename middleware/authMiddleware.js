@@ -1,28 +1,14 @@
 const jwt = require("jsonwebtoken");
 
-const authenticateToken = (req, res, next) => {
-  // Ambil token dari header Authorization
+module.exports = function authenticateToken(req, res, next) {
   const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1]; // format: "Bearer <token>"
+  const token = authHeader && authHeader.split(" ")[1]; // Bearer <token>
 
-  if (!token) {
-    return res.status(401).json({ message: "Access token missing" });
-  }
-
-  // Verifikasi token
-  console.log("Token:", token);
-  console.log("Secret Key:", process.env.JWT_SECRET_KEY);
+  if (!token) return res.status(401).json({ message: "Token required" });
 
   jwt.verify(token, process.env.JWT_SECRET_KEY, (err, user) => {
-    if (err) {
-      console.error("JWT Verify Error:", err.message);
-      return res.status(403).json({ message: "Invalid or expired token" });
-    }
-
-    // Simpan data user ke req agar bisa dipakai route berikutnya
+    if (err) return res.status(403).json({ message: "Invalid token" });
     req.user = user;
     next();
   });
 };
-
-module.exports = authenticateToken;

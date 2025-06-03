@@ -1,73 +1,122 @@
 // controllers/todoController.js
+const prisma = require("../prisma/client");
 const {
   successResponse,
   errorResponse,
 } = require("../utils/responseFormatter");
 
-
-let todos = []; // Simpan sementara (nanti pakai DB)
-
-exports.createTodo = (req, res) => {
+// CREATE TODO
+exports.createTodo = async (req, res) => {
   const { title, description } = req.body;
-  const userEmail = req.user.email;
+  const email = req.user.email;
 
   if (!title) {
-    return res.status(400).json({ message: "Title is required" });
+    return errorResponse(res, 400, "Title is required");
   }
 
-  const newTodo = {
-    id: todos.length + 1,
-    title,
-    description: description || "",
-    email: userEmail,
-  };
+  try {
+    const newTodo = await prisma.todo.create({
+      data: {
+        title,
+        description: description || "",
+        email,
+      },
+    });
 
-  todos.push(newTodo);
-  res.status(201).json({ message: "Todo created", todo: newTodo });
+    return successResponse(res, 201, "Todo created", newTodo);
+  } catch (err) {
+    console.error(err);
+    return errorResponse(res, 500, "Internal server error");
+  }
 };
 
-exports.getUserTodos = (req, res) => {
+// GET ALL TODOS
+exports.getUserTodos = async (req, res) => {
   const email = req.user.email;
-  const userTodos = todos.filter((todo) => todo.email === email);
 
-  return successResponse(res, 200, "User's todos fetched", userTodos);
+  try {
+    const todos = await prisma.todo.findMany({
+      where: { email },
+    });
+
+    return successResponse(res, 200, "User's todos fetched", todos);
+  } catch (err) {
+    console.error(err);
+    return errorResponse(res, 500, "Internal server error");
+  }
 };
 
-exports.updateTodo = (req, res) => {
+
+// GET TODO BY ID
+exports.getTodoById = async (req, res) => {
+  const { id } = req.params;
+  const email = req.user.email;
+
+  try {
+    const todo = await prisma.todo.findFirst({
+      where: {
+        id: parseInt(id),
+        email: email, // hanya todo milik user terkait
+      },
+    });
+
+    if (!todo) {
+      return errorResponse(res, 404, "Todo not found");
+    }
+
+    return successResponse(res, 200, "Todo fetched", todo);
+  } catch (err) {
+    console.error(err);
+    return errorResponse(res, 500, "Internal server error");
+  }
+};
+
+// UPDATE TODO
+exports.updateTodo = async (req, res) => {
   const { id } = req.params;
   const { title, description } = req.body;
   const email = req.user.email;
 
-  const todo = todos.find((t) => t.id === parseInt(id));
+  try {
+    const todo = await prisma.todo.findUnique({
+      where: { id: parseInt(id) },
+    });
 
-  if (!todo) {
-    return errorResponse(res, 404, "Todo not found");
+    if (!todo) return errorResponse(res, 404, "Todo not found");
+    if (todo.email !== email) return errorResponse(res, 403, "Not authorized");
+
+    const updated = await prisma.todo.update({
+      where: { id: parseInt(id) },
+      data: { title, description },
+    });
+
+    return successResponse(res, 200, "Todo updated", updated);
+  } catch (err) {
+    console.error(err);
+    return errorResponse(res, 500, "Internal server error");
   }
-
-  if (todo.email !== email) {
-    return errorResponse(res, 403, "Unauthorized: Not your todo");
-  }
-
-  if (title) todo.title = title;
-  if (description) todo.description = description;
-
-  return successResponse(res, 200, "Todo updated", todo);
 };
 
-exports.deleteTodo = (req, res) => {
+// DELETE TODO
+exports.deleteTodo = async (req, res) => {
   const { id } = req.params;
   const email = req.user.email;
 
-  const index = todos.findIndex((t) => t.id === parseInt(id));
-  if (index === -1) {
-    return errorResponse(res, 404, "Todo not found");
+  try {
+    const todo = await prisma.todo.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    if (!todo) return errorResponse(res, 404, "Todo not found");
+    if (todo.email !== email) return errorResponse(res, 403, "Not authorized");
+
+    await prisma.todo.delete({
+      where: { id: parseInt(id) },
+    });
+
+    return successResponse(res, 200, "Todo deleted", todo);
+  } catch (err) {
+    console.error(err);
+    return errorResponse(res, 500, "Internal server error");
   }
-
-  if (todos[index].email !== email) {
-    return errorResponse(res, 403, "Unauthorized: Not your todo");
-  }
-
-  const deleted = todos.splice(index, 1)[0];
-
-  return successResponse(res, 200, "Todo deleted", deleted);
 };

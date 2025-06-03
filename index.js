@@ -22,7 +22,7 @@ const protectedRoutes = require("./routes/protected");
 app.use("/api", protectedRoutes); // Jadi endpointnya: /api/protected
 
 const todoRoutes = require("./routes/todoRoutes");
-app.use("/api", todoRoutes);
+app.use("/api/todos", todoRoutes);
 
 
 // Start server
