@@ -4,14 +4,26 @@ const {
   successResponse,
   errorResponse,
 } = require("../utils/responseFormatter");
+const {
+  createTodoSchema,
+  updateTodoSchema,
+} = require("../validations/todoValidation");
 
 // CREATE TODO
 exports.createTodo = async (req, res) => {
-  const { title, description } = req.body;
-  const email = req.user.email;
+  // Validasi dengan Zod
+  const validation = createTodoSchema.safeParse(req.body);
+  if (!validation.success) {
+    return res
+      .status(400)
+      .json({ errors: validation.error.flatten().fieldErrors });
+  }
 
-  if (!title) {
-    return errorResponse(res, 400, "Title is required");
+  const { title, description, completed =  false } = validation.data;
+  const email = req.user?.email; // pastikan user di-auth middleware
+
+  if (!email) {
+    return errorResponse(res, 401, "Unauthorized: email not found");
   }
 
   try {
@@ -19,7 +31,8 @@ exports.createTodo = async (req, res) => {
       data: {
         title,
         description: description || "",
-        email,
+        completed, // <-- tambahkan ini!
+        user: { connect: { email } },
       },
     });
 
@@ -74,7 +87,7 @@ exports.getTodoById = async (req, res) => {
 // UPDATE TODO
 exports.updateTodo = async (req, res) => {
   const { id } = req.params;
-  const { title, description } = req.body;
+  const { title, description, completed } = req.body;
   const email = req.user.email;
 
   try {
@@ -87,7 +100,7 @@ exports.updateTodo = async (req, res) => {
 
     const updated = await prisma.todo.update({
       where: { id: parseInt(id) },
-      data: { title, description },
+      data: { title, description, completed },
     });
 
     return successResponse(res, 200, "Todo updated", updated);

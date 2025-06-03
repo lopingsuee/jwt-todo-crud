@@ -1,18 +1,34 @@
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const prisma = require("../prisma/client");
+const {
+  registerSchema,
+  loginSchema,
+} = require("../validations/authValidation");
 
 
 exports.registerUser = async (req, res) => {
-  const { email, password } = req.body;
+  // Validasi input dengan Zod
+  const validation = registerSchema.safeParse(req.body);
+  if (!validation.success) {
+    return res
+      .status(400)
+      .json({ errors: validation.error.flatten().fieldErrors });
+  }
+
+  const { email, password } = validation.data;
 
   try {
+    // Cek apakah email sudah terdaftar
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
       return res.status(400).json({ message: "Email already registered" });
     }
 
+    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Simpan user baru
     const newUser = await prisma.user.create({
       data: { email, password: hashedPassword },
     });
